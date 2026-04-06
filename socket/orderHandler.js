@@ -1,4 +1,4 @@
-const orderHandler = (io, socket) => {
+export const orderHandler = (io, socket) => {
   console.log("A User connected", socket.id);
 
   //Place Order
@@ -6,6 +6,12 @@ const orderHandler = (io, socket) => {
     try {
       console.log(`Placed Order From ${socket.id}`);
       const validation = validateOrder(data);
+      if (!validation.valid) {
+        return callback({
+          success: false,
+          message: validation.message,
+        });
+      }
     } catch (error) {
       console.log(error);
     }
