@@ -8,6 +8,7 @@ import { connectDB, getCollection, closeDB } from "./config/database.js";
 import { Server } from "socket.io";
 import http from "http";
 import { orderHandler } from "./socket/orderHandler.js";
+import { generateOrderId } from "./utils/helper.js";
 
 // Load environment variables
 dotenv.config();
@@ -24,6 +25,9 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
   console.log("A User Connected", socket.id);
   socket.emit("Connected", { message: `User ${socket.id} connected` });
+
+  //Order ID
+  console.log(generateOrderId());
 
   //For Handling Orders
   orderHandler(io, socket);

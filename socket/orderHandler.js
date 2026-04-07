@@ -1,3 +1,10 @@
+import { getCollection } from "../config/database.js";
+import {
+  calculateTotals,
+  createOrderDocument,
+  generateOrderId,
+} from "../utils/helper.js";
+
 export const orderHandler = (io, socket) => {
   console.log("A User connected", socket.id);
 
@@ -12,8 +19,25 @@ export const orderHandler = (io, socket) => {
           message: validation.message,
         });
       }
+      const totals = calculateTotals(data.items);
+      const orderId = generateOrderId();
+      const order = createOrderDocument(data, orderId, totals);
+
+      const ordersCollection = getCollection("orders");
+      await ordersCollection.insertOne(order);
+
+      socket.join(`order-${orderId}`);
+      socket.join("customers");
+
+      io.to("admins").emit("newOrder", { order });
+      callback({
+        success: true,
+        order,
+      });
+      console.log(`Order Created: ${orderId}`);
     } catch (error) {
       console.log(error);
+      callback({ success: false, message: "Failed to Place Order..." });
     }
   });
 };
