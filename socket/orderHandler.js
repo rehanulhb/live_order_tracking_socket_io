@@ -119,4 +119,46 @@ export const orderHandler = (io, socket) => {
       callback({ success: false, message: "Failed to load orders" });
     }
   });
+
+  // ======================
+  // ADMIN EVENTS
+  // ======================
+
+  // Admin Login
+  socket.on("adminLogin", (data, callback) => {
+    try {
+      if (data.password === process.env.ADMIN_PASSWORD) {
+        socket.isAdmin = true;
+        socket.join("admins");
+        console.log(`✅ Admin logged in: ${socket.id}`);
+        callback({ success: true });
+      } else {
+        callback({ success: false, message: "Invalid password" });
+      }
+    } catch (error) {
+      callback({ success: false, message: "Login failed" });
+    }
+  });
+
+  // Get All Orders
+  socket.on("getAllOrders", async (data, callback) => {
+    try {
+      if (!socket.isAdmin) {
+        return callback({ success: false, message: "Unauthorized" });
+      }
+
+      const ordersCollection = getCollection("orders");
+      const filter = data?.status ? { status: data.status } : {};
+      const orders = await ordersCollection
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .limit(data?.limit || 50)
+        .toArray();
+
+      callback({ success: true, orders });
+    } catch (error) {
+      console.error("❌ Get all orders error:", error);
+      callback({ success: false, message: "Failed to load orders" });
+    }
+  });
 };
