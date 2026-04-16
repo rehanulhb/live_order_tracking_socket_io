@@ -204,17 +204,65 @@ export const orderHandler = (io, socket) => {
         status: data.newStatus,
         order: result,
       });
-      socket
-        .to("admins")
-        .emit("orderStatusChanged", {
-          orderId: data.orderId,
-          newStatus: data.newStatus,
-        });
+      socket.to("admins").emit("orderStatusChanged", {
+        orderId: data.orderId,
+        newStatus: data.newStatus,
+      });
 
       callback({ success: true, order: result });
     } catch (error) {
       console.error("❌ Update status error:", error);
       callback({ success: false, message: "Failed to update status" });
+    }
+  });
+
+  // Accept Order
+  socket.on("acceptOrder", async (data, callback) => {
+    try {
+      if (!socket.isAdmin) {
+        return callback({ success: false, message: "Unauthorized" });
+      }
+
+      const ordersCollection = getCollection("orders");
+      const order = await ordersCollection.findOne({ orderId: data.orderId });
+
+      if (!order || order.status !== "pending") {
+        return callback({
+          success: false,
+          message: "Cannot accept this order",
+        });
+      }
+
+      const estimatedTime = data.estimatedTime || 30;
+
+      const result = await ordersCollection.findOneAndUpdate(
+        { orderId: data.orderId },
+        {
+          $set: { status: "confirmed", estimatedTime, updatedAt: new Date() },
+          $push: {
+            statusHistory: {
+              status: "confirmed",
+              timestamp: new Date(),
+              by: socket.id,
+              note: `Accepted with ${estimatedTime} min estimated time`,
+            },
+          },
+        },
+        { returnDocument: "after" },
+      );
+
+      io.to(`order_${data.orderId}`).emit("orderAccepted", {
+        orderId: data.orderId,
+        estimatedTime,
+      });
+      socket
+        .to("admins")
+        .emit("orderAcceptedByAdmin", { orderId: data.orderId });
+
+      callback({ success: true, order: result });
+    } catch (error) {
+      console.error("❌ Accept order error:", error);
+      callback({ success: false, message: "Failed to accept order" });
     }
   });
 };
