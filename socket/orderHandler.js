@@ -265,4 +265,73 @@ export const orderHandler = (io, socket) => {
       callback({ success: false, message: "Failed to accept order" });
     }
   });
+
+  // Reject Order
+    socket.on('rejectOrder', async (data, callback) => {
+        try {
+            if (!socket.isAdmin) {
+                return callback({ success: false, message: 'Unauthorized' });
+            }
+
+            const ordersCollection = getCollection('orders');
+            const order = await ordersCollection.findOne({ orderId: data.orderId });
+
+            if (!order || order.status !== 'pending') {
+                return callback({ success: false, message: 'Cannot reject this order' });
+            }
+
+            await ordersCollection.updateOne(
+                { orderId: data.orderId },
+                {
+                    $set: { status: 'cancelled', updatedAt: new Date() },
+                    $push: {
+                        statusHistory: {
+                            status: 'cancelled',
+                            timestamp: new Date(),
+                            by: socket.id,
+                            note: `Rejected: ${data.reason}`
+                        }
+                    }
+                }
+            );
+
+            io.to(`order_${data.orderId}`).emit('orderRejected', { orderId: data.orderId, reason: data.reason });
+
+            callback({ success: true });
+
+        } catch (error) {
+            console.error('❌ Reject order error:', error);
+            callback({ success: false, message: 'Failed to reject order' });
+        }
+    });
+
+    // Get Live Stats
+    socket.on('getLiveStats', async (callback) => {
+        try {
+            if (!socket.isAdmin) {
+                return callback({ success: false, message: 'Unauthorized' });
+            }
+
+            const ordersCollection = getCollection('orders');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const stats = {
+                totalToday: await ordersCollection.countDocuments({ createdAt: { $gte: today } }),
+                pending: await ordersCollection.countDocuments({ status: 'pending' }),
+                confirmed: await ordersCollection.countDocuments({ status: 'confirmed' }),
+                preparing: await ordersCollection.countDocuments({ status: 'preparing' }),
+                ready: await ordersCollection.countDocuments({ status: 'ready' }),
+                outForDelivery: await ordersCollection.countDocuments({ status: 'out_for_delivery' }),
+                delivered: await ordersCollection.countDocuments({ status: 'delivered' }),
+                cancelled: await ordersCollection.countDocuments({ status: 'cancelled' })
+            };
+
+            callback({ success: true, stats });
+
+        } catch (error) {
+            console.error('❌ Get stats error:', error);
+            callback({ success: false, message: 'Failed to load stats' });
+        }
+    });
 };
