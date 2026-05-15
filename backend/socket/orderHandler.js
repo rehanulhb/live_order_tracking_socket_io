@@ -212,12 +212,10 @@ export const orderHandler = (io, socket) => {
         status: data.newStatus,
         order: result,
       });
-      socket
-        .to("admins")
-        .emit("orderStatusChanged", {
-          orderId: data.orderId,
-          newStatus: data.newStatus,
-        });
+      socket.to("admins").emit("orderStatusChanged", {
+        orderId: data.orderId,
+        newStatus: data.newStatus,
+      });
 
       callback({ success: true, order: result });
     } catch (error) {
